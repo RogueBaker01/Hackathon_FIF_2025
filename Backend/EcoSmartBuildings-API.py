@@ -29,8 +29,8 @@ app.add_middleware(
 
 # 2. Clases de Configuración del Sistema
 class OfficeConfig(BaseModel):
-    work_start: time = time(8, 0)
-    work_end: time = time(18, 0)
+    work_start: time = time(8, 0) # Hora inicio 8:00 AM
+    work_end: time = time(18, 0) # Hora fin 6:00 PM
     authorized_rfid: set = {"CLEAN123", "MAINT456"}
 
 class InfraredCamera:
