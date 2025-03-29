@@ -1,23 +1,34 @@
-# eco_gob_qro.py
 import time
 import random
+import asyncio
 import numpy as np
+from fastapi import FastAPI, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 from faker import Faker
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
-from paho.mqtt import client as mqtt_client
+import uvicorn
 
-# 1. Configuración Inicial
-fake = Faker('es_ES')
+# 1. Configuración inicial
+app = FastAPI(title="EcoGob-Qro API", version="1.0")
+fake = Faker()
 np.random.seed(42)
 
-# 2. Simulador de Sensores IoT
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 2. Simulador de Sensores
 class SensorSimulator:
     def __init__(self, building_id):
         self.building_id = building_id
-        
+
     def generate_light_data(self):
         return {
             "ocupacion": random.randint(0, 1),
@@ -34,14 +45,14 @@ class SensorSimulator:
     
     def generate_gas_data(self):
         return {
-            "presion": round(random.uniform(0.5, 2.5)),  # bar
-            "flujo": round(random.uniform(0.0, 25.0), 1),  # L/min
+            "presion": round(random.uniform(0.5, 2.5), 1),
+            "flujo": round(random.uniform(0.0, 25.0), 1),
             "valvula_abierta": random.choice([0, 1])
         }
     
     def generate_electric_data(self):
         return {
-            "consumo": round(random.uniform(5.0, 150.0), 2)  # kWh
+            "consumo": round(random.uniform(5.0, 150.0), 2)
         }
 
 # 3. Implementación de Agentes
@@ -59,9 +70,8 @@ class ClimateAgent:
     def __init__(self):
         self.model = LinearRegression()
         self.scaler = StandardScaler()
-        # Entrenamiento inicial con datos falsos
-        X_train = np.random.rand(100, 3) * 30  # [temp_interna, temp_externa, humedad]
-        y_train = np.random.randint(0, 2, 100)  # 0 = apagar, 1 = encender
+        X_train = np.random.rand(100, 3) * 30
+        y_train = np.random.randint(0, 2, 100)
         self.model.fit(self.scaler.fit_transform(X_train), y_train)
         
     def analyze(self, data):
@@ -70,7 +80,6 @@ class ClimateAgent:
 
 class ElectricAgent:
     def __init__(self):
-        # Autoencoder simple para detección de anomalías
         self.model = tf.keras.Sequential([
             tf.keras.layers.Dense(8, activation='relu', input_shape=(1,)),
             tf.keras.layers.Dense(4, activation='relu'),
@@ -79,7 +88,6 @@ class ElectricAgent:
         self.model.compile(optimizer='adam', loss='mse')
         
     def analyze(self, data):
-        # Entrenamiento en vuelto con datos simulados
         historico = np.random.rand(100, 1) * 150
         self.model.fit(historico, historico, epochs=1, verbose=0)
         reconstruccion = self.model.predict([[data['consumo']]])
@@ -99,7 +107,7 @@ class GasAgent:
         logits = self.model(**inputs).logits
         return {"alerta": "ALERTA" if logits.argmax().item() == 1 else "OK"}
 
-# 4. Sistema Principal
+# 4. Sistema Principal y API
 class SmartBuildingSystem:
     def __init__(self):
         self.sensor = SensorSimulator("EDIF_001")
@@ -109,60 +117,58 @@ class SmartBuildingSystem:
             "electric": ElectricAgent(),
             "gas": GasAgent()
         }
-        self.dashboard = {
-            "ultima_actualizacion": None,
-            "estado": {},
-            "alertas": []
-        }
-        
-    def simular_mqtt(self, topic, payload):
-        """Simula la comunicación MQTT para el hackathon"""
-        print(f" [MQTT] Mensaje recibido en {topic}: {payload}")
-        
-    def actualizar_dashboard(self, sensor_type, data, analysis):
-        self.dashboard["ultima_actualizacion"] = time.strftime("%Y-%m-%d %H:%M:%S")
-        self.dashboard["estado"][sensor_type] = {
-            "data": data,
-            "analysis": analysis
-        }
-        if any([("anomalia" in a and a["anomalia"]) or ("alerta" in a and a["alerta"] == "ALERTA") 
-               for a in self.dashboard["estado"].values()]):
-            self.dashboard["alertas"].append(f"Alerta detectada: {time.strftime('%H:%M:%S')}")
+        self.current_state = {}
+        self.alert_history = []
 
-    def run(self, interval=5):
-        """Ejecuta el sistema principal"""
-        try:
-            while True:
-                # Generar y procesar datos de todos los sensores
-                for sensor_type in ["light", "climate", "electric", "gas"]:
-                    data = getattr(self.sensor, f"generate_{sensor_type}_data")()
-                    analysis = self.agents[sensor_type].analyze(data)
-                    
-                    # Publicar via MQTT (simulado)
-                    self.simular_mqtt(f"edificio/{sensor_type}", data)
-                    
-                    # Actualizar dashboard
-                    self.actualizar_dashboard(sensor_type, data, analysis)
-                
-                # Mostrar estado actual
-                print("\n" + "="*40)
-                print(f"🏢 Estado del Sistema - {self.dashboard['ultima_actualizacion']}")
-                print(f"💡 Iluminación: {self.dashboard['estado']['light']['analysis']['intensidad']}%")
-                print(f"❄️ Clima: {self.dashboard['estado']['climate']['analysis']['accion'].upper()}")
-                print(f"⚡ Consumo Eléctrico: {self.dashboard['estado']['electric']['data']['consumo']} kWh - {'🚨 ANOMALÍA' if self.dashboard['estado']['electric']['analysis']['anomalia'] else '✅ Normal'}")
-                print(f"🔵 Gas: {self.dashboard['estado']['gas']['analysis']['alerta']}")
-                
-                if self.dashboard["alertas"]:
-                    print("\n🚨 ALERTAS ACTIVAS:")
-                    for alerta in self.dashboard["alertas"][-3:]:
-                        print(f" - {alerta}")
-                
-                time.sleep(interval)
-                
-        except KeyboardInterrupt:
-            print("\n Sistema detenido")
+    def get_status(self):
+        return {
+            "timestamp": time.time(),
+            "sensors": self.current_state,
+            "alerts": self.alert_history[-5:]
+        }
 
-# 5. Ejecución
+app.state.system = SmartBuildingSystem()
+
+@app.get("/api/status")
+async def get_status():
+    return app.state.system.get_status()
+
+@app.websocket("/ws/real-time")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = app.state.system.get_status()
+            await websocket.send_json(data)
+            await asyncio.sleep(5)
+    except Exception as e:
+        print(f"Error de WebSocket: {e}")
+
+async def simulate_sensors():
+    while True:
+        for sensor_type in ["light", "climate", "electric", "gas"]:
+            data = getattr(app.state.system.sensor, f"generate_{sensor_type}_data")()
+            analysis = app.state.system.agents[sensor_type].analyze(data)
+            
+            app.state.system.current_state[sensor_type] = {
+                "data": data,
+                "analysis": analysis
+            }
+
+            if (sensor_type == "electric" and analysis["anomalia"]) or \
+               (sensor_type == "gas" and analysis["alerta"] == "ALERTA"):
+                alert = {
+                    "type": sensor_type,
+                    "message": f"Alerta en {sensor_type}: {analysis}",
+                    "timestamp": time.time()
+                }
+                app.state.system.alert_history.append(alert)
+        
+        await asyncio.sleep(5)
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(simulate_sensors())
+
 if __name__ == "__main__":
-    system = SmartBuildingSystem()
-    system.run()
+    uvicorn.run(app, host="0.0.0.0", port=8000)
