@@ -6,8 +6,6 @@
 
 Advanced office automation system combining IoT sensors, AI models, and real-time control for energy efficiency and security management.
 
-![System Architecture](assets/architecture-diagram.png) <!-- Add actual diagram if available -->
-
 ## 📖 Table of Contents
 - [Key Features](#-key-features)
 - [Tech Stack](#-tech-stack)
