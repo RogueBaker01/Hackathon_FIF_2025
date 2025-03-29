@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Validación RFID</title>
+    <style>
+        .container { max-width: 500px; margin: 50px auto; padding: 20px; }
+        form { display: flex; gap: 10px; }
+        input { flex: 1; padding: 10px; }
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; }
+        #result { margin-top: 20px; padding: 15px; border-radius: 5px; }
+        .valid { background: #dff0d8; color: #3c763d; }
+        .invalid { background: #f2dede; color: #a94442; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Verificador RFID</h1>
+        <form onsubmit="validateRFID(event)">
+            <input type="text" id="rfidInput" placeholder="Ingrese código RFID" required>
+            <button type="submit">Validar</button>
+        </form>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function validateRFID(event) {
+            event.preventDefault();
+            const rfid = document.getElementById('rfidInput').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/validate-rfid', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rfid_code: rfid })
+                });
+                
+                const data = await response.json();
+                resultDiv.className = data.valid ? 'valid' : 'invalid';
+                resultDiv.textContent = data.valid 
+                    ? '✅ RFID válido - Acceso concedido'
+                    : '❌ RFID inválido - Acceso denegado';
+                
+            } catch (error) {
+                resultDiv.className = 'invalid';
+                resultDiv.textContent = 'Error en la validación';
+            }
+        }
+    </script>
+</body>
+</html>

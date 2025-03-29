@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EcoGob Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .card { 
+            background: #f5f5f5; 
+            border-radius: 10px; 
+            padding: 20px; 
+            margin: 10px; 
+            display: inline-block;
+            width: 300px;
+        }
+        .status { color: #4CAF50; font-weight: bold; }
+        .danger { color: #f44336; }
+    </style>
+</head>
+<body>
+    <h1>EcoGob Office Manager - Dashboard en Tiempo Real</h1>
+    
+    <div class="card">
+        <h3>🏢 Ocupación</h3>
+        <p id="occupancy">0 personas</p>
+    </div>
+    
+    <div class="card">
+        <h3>💡 Iluminación</h3>
+        <p id="lightLevel">Nivel 0</p>
+    </div>
+    
+    <div class="card">
+        <h3>⚡ Energía</h3>
+        <p>Luces: <span id="energyLights">0 kW</span></p>
+        <p>Computadoras: <span id="energyComputers">0 kW</span></p>
+        <p>HVAC: <span id="energyHvac">0 kW</span></p>
+    </div>
+    
+    <div class="card">
+        <h3>🔒 Seguridad</h3>
+        <p>Luces: <span id="safetyLights" class="status">-</span></p>
+        <p>Computadoras: <span id="safetyComputers" class="status">-</span></p>
+        <p>Agua: <span id="safetyWater" class="status">-</span></p>
+        <p>Gas: <span id="safetyGas" class="status">-</span></p>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:8000/ws/real-time');
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            // Actualizar datos
+            document.getElementById('occupancy').textContent = `${data.occupancy} personas`;
+            document.getElementById('lightLevel').textContent = `Nivel ${data.light_level}`;
+            
+            // Energía
+            document.getElementById('energyLights').textContent = `${data.energy_usage.lights.toFixed(2)} kW`;
+            document.getElementById('energyComputers').textContent = `${data.energy_usage.computers.toFixed(2)} kW`;
+            document.getElementById('energyHvac').textContent = `${data.energy_usage.hvac.toFixed(2)} kW`;
+            
+            // Seguridad
+            const safety = data.safety_status;
+            document.getElementById('safetyLights').textContent = safety.lights;
+            document.getElementById('safetyComputers').textContent = safety.computers;
+            document.getElementById('safetyWater').textContent = safety.water;
+            document.getElementById('safetyGas').textContent = safety.gas;
+        };
+    </script>
+</body>
+</html>

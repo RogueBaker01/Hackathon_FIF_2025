@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registro de Seguridad</title>
+    <style>
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .granted { color: green; }
+        .denied { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Registro de Accesos</h1>
+    <table id="logTable">
+        <thead>
+            <tr>
+                <th>Hora</th>
+                <th>RFID</th>
+                <th>Acceso</th>
+                <th>Sistemas Activados</th>
+            </tr>
+        </thead>
+        <tbody id="logBody">
+        </tbody>
+    </table>
+
+    <script>
+        fetch('http://localhost:8000/api/security-log?limit=10')
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.getElementById('logBody');
+                data.log.forEach(entry => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${new Date(entry.timestamp).toLocaleString()}</td>
+                        <td>${entry.rfid}</td>
+                        <td class="${entry.access_granted ? 'granted' : 'denied'}">
+                            ${entry.access_granted ? '✅ Autorizado' : '❌ Denegado'}
+                        </td>
+                        <td>${JSON.stringify(entry.systems_activated)}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            });
+    </script>
+</body>
+</html>
