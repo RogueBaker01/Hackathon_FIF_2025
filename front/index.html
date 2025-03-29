@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoGob Office Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #34495e;
+            --accent-color: #3498db;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+            --text-color: #ecf0f1;
+        }
+
+        body {
+            background-color: var(--primary-color);
+            color: var(--text-color);
+            min-height: 100vh;
+        }
+
+        .dashboard-header {
+            background-color: var(--secondary-color);
+            padding: 20px;
+            margin-bottom: 30px;
+            border-bottom: 3px solid var(--accent-color);
+        }
+
+        .card-custom {
+            background-color: var(--secondary-color);
+            border: 1px solid var(--accent-color);
+            margin-bottom: 20px;
+            min-height: 200px;
+        }
+
+        .status-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        .status-active {
+            background-color: var(--success-color);
+        }
+
+        .status-inactive {
+            background-color: var(--danger-color);
+        }
+
+        .progress {
+            height: 25px;
+            margin-bottom: 15px;
+            background-color: var(--primary-color);
+        }
+
+        .security-log {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .badge {
+            font-size: 0.9em;
+            padding: 0.5em 0.75em;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <h1 class="mb-0">🏢 EcoGob Office Manager</h1>
+            <small class="text-muted">Monitorización en tiempo real del edificio</small>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row g-4">
+            <!-- Columna Izquierda -->
+            <div class="col-lg-4">
+                <div class="card card-custom">
+                    <div class="card-body">
+                        <h5 class="card-title">📊 Estadísticas en Tiempo Real</h5>
+                        <div id="realtime-stats">
+                            <p>👥 Ocupación: <span id="occupancy" class="badge bg-info">0</span></p>
+                            <p>💡 Nivel de Luz: <span id="light-level" class="badge bg-warning">0%</span></p>
+                            <p>🕒 Última actualización: <span id="last-update" class="badge bg-secondary">--:--:--</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card card-custom">
+                    <div class="card-body">
+                        <h5 class="card-title">🔋 Consumo Energético (kW)</h5>
+                        <div id="energy-usage">
+                            <p>Iluminación: 
+                                <div class="progress">
+                                    <div id="lights-progress" class="progress-bar bg-info" role="progressbar"></div>
+                                </div>
+                            </p>
+                            <p>Computadoras: 
+                                <div class="progress">
+                                    <div id="computers-progress" class="progress-bar bg-success" role="progressbar"></div>
+                                </div>
+                            </p>
+                            <p>Climatización: 
+                                <div class="progress">
+                                    <div id="hvac-progress" class="progress-bar bg-danger" role="progressbar"></div>
+                                </div>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna Derecha -->
+            <div class="col-lg-8">
+                <div class="card card-custom">
+                    <div class="card-body">
+                        <h5 class="card-title">🛡️ Estado de Seguridad</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p>💡 Luces: <span id="lights-status" class="badge"></span></p>
+                                <p>💻 Computadoras: <span id="computers-status" class="badge"></span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p>🚰 Agua: <span id="water-status" class="badge"></span></p>
+                                <p>🔥 Gas: <span id="gas-status" class="badge"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card card-custom">
+                    <div class="card-body">
+                        <h5 class="card-title">🔑 Validación RFID</h5>
+                        <form id="rfidForm" class="mb-3">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="rfidInput" placeholder="Introduce código RFID" required>
+                                <button class="btn btn-outline-primary" type="submit">Validar</button>
+                            </div>
+                        </form>
+                        <div id="rfid-result"></div>
+                    </div>
+                </div>
+
+                <div class="card card-custom">
+                    <div class="card-body">
+                        <h5 class="card-title">📜 Registro de Seguridad</h5>
+                        <div class="security-log">
+                            <table class="table table-dark table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Hora</th>
+                                        <th>RFID</th>
+                                        <th>Acceso</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="security-log-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Conexión WebSocket
+        const ws = new WebSocket('ws://localhost:8000/ws/real-time');
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            updateDashboard(data);
+        };
+
+        // Actualizar el dashboard
+        function updateDashboard(data) {
+            // Estadísticas en tiempo real
+            document.getElementById('occupancy').textContent = data.occupancy;
+            document.getElementById('light-level').textContent = `${data.light_level}%`;
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+
+            // Consumo energético
+            updateProgressBar('lights-progress', data.energy_usage.lights, 5);
+            updateProgressBar('computers-progress', data.energy_usage.computers, 150);
+            updateProgressBar('hvac-progress', data.energy_usage.hvac, 25);
+
+            // Estado de seguridad
+            updateStatus('lights-status', data.safety_status.lights);
+            updateStatus('computers-status', data.safety_status.computers);
+            updateStatus('water-status', data.safety_status.water);
+            updateStatus('gas-status', data.safety_status.gas);
+        }
+
+        function updateProgressBar(elementId, value, max) {
+            const progress = (value / max) * 100;
+            const element = document.getElementById(elementId);
+            element.style.width = `${progress}%`;
+            element.textContent = `${value.toFixed(1)} kW`;
+        }
+
+        function updateStatus(elementId, status) {
+            const element = document.getElementById(elementId);
+            element.textContent = status;
+            element.className = 'badge ' + (status.toLowerCase().includes('off') || 
+                                          status.toLowerCase().includes('locked') ||
+                                          status.toLowerCase().includes('closed') ? 
+                                          'bg-danger' : 'bg-success');
+        }
+
+        // Validación RFID
+        document.getElementById('rfidForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const rfid = document.getElementById('rfidInput').value;
+            const response = await fetch('/api/validate-rfid', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rfid_code: rfid })
+            });
+            
+            const result = await response.json();
+            const resultDiv = document.getElementById('rfid-result');
+            resultDiv.innerHTML = `<div class="alert ${result.valid ? 'alert-success' : 'alert-danger'}" role="alert">
+                                   RFID ${result.valid ? 'válido' : 'inválido'}
+                                 </div>`;
+        });
+
+        // Cargar registro de seguridad inicial
+        async function loadSecurityLog() {
+            const response = await fetch('/api/security-log');
+            const data = await response.json();
+            updateSecurityLog(data.log);
+        }
+
+        function updateSecurityLog(logEntries) {
+            const tbody = document.getElementById('security-log-body');
+            tbody.innerHTML = logEntries.reverse().map(entry => `
+                <tr>
+                    <td>${new Date(entry.timestamp).toLocaleTimeString()}</td>
+                    <td>${entry.rfid}</td>
+                    <td>${entry.access_granted ? '✅ Permitido' : '❌ Denegado'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Actualizar registro cada 10 segundos
+        setInterval(loadSecurityLog, 10000);
+        
+        // Inicialización
+        loadSecurityLog();
+    </script>
+</body>
+</html>
